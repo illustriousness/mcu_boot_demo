@@ -1,0 +1,42 @@
+#ifndef FLASH_MAP_H_
+#define FLASH_MAP_H_
+
+#include <stdint.h>
+#include <stddef.h>
+
+/* Flash area IDs. */
+#define FLASH_AREA_BOOTLOADER     0
+#define FLASH_AREA_IMAGE_0        1
+#define FLASH_AREA_IMAGE_1        2
+#define FLASH_AREA_IMAGE_SCRATCH  3
+#define FLASH_AREA_PARAM          4
+
+struct flash_area {
+    uint8_t fa_id;
+    uint8_t fa_device_id;
+    uint16_t pad16;
+    uint32_t fa_off;
+    uint32_t fa_size;
+};
+
+struct flash_sector {
+    uint32_t fs_off;
+    uint32_t fs_size;
+};
+
+int flash_device_base(uint8_t fd_id, uintptr_t *ret);
+int flash_area_open(uint8_t id, const struct flash_area **fa);
+void flash_area_close(const struct flash_area *fa);
+int flash_area_read(const struct flash_area *fa, uint32_t off, void *dst, uint32_t len);
+int flash_area_write(const struct flash_area *fa, uint32_t off, const void *src, uint32_t len);
+int flash_area_erase(const struct flash_area *fa, uint32_t off, uint32_t len);
+uint32_t flash_area_align(const struct flash_area *fa);
+uint8_t flash_area_erased_val(const struct flash_area *fa);
+int flash_area_get_sectors(int fa_id, uint32_t *count, struct flash_sector *sectors);
+int flash_area_sector_from_off(uint32_t off, struct flash_sector *sector);
+int flash_area_get_sector(const struct flash_area *fa, uint32_t off, struct flash_sector *sector);
+int flash_area_id_from_multi_image_slot(int image_index, int slot);
+int flash_area_id_to_multi_image_slot(int image_index, int area_id);
+int flash_area_id_from_image_slot(int slot);
+
+#endif /* FLASH_MAP_H_ */
