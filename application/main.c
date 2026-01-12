@@ -25,7 +25,7 @@ void JumpToApplication(uint32_t app_addr)
 
     // 设置主栈指针并切换向量表
     __set_MSP(*(volatile uint32_t *)app_addr); // 设置堆栈指针
-    SCB->VTOR = app_addr;
+    SCB->VTOR = (app_addr & 0xFFFFFF80);
     // uint32_t r0 __asm("r0") = (uint32_t)&RTMSymTab$$Base;
     // uint32_t r1 __asm("r1") = (uint32_t)&RTMSymTab$$Limit;
     // AppEntry(r0, r1);

@@ -7,7 +7,7 @@
 #include "flashdb.h"
 #include "fdb_low_lvl.h"
 // #define LOG_D(...) rt_kprintf(__VA_ARGS__)
-// #define LOG_D(...)
+#define LOG_D(...)
 
 /* FlashDB keys for firmware info */
 #define FW_INFO_KEY_LEN   "fw_len"
@@ -216,7 +216,7 @@ uint8_t app_can_upgrade(void)
                         }
                         else
                         {
-                            LOG_E("CRC32 mismatch! Firmware corrupted!\n");
+                            // LOG_E("CRC32 mismatch! Firmware corrupted!\n");
                             state = CAN_UPGRADE_ETIMEOUT;
                         }
 
@@ -255,104 +255,3 @@ void run_app(int argc, char **argv)
     JumpToApplication(app_addr);
 }
 MSH_CMD_EXPORT(run_app, desc);
-
-/**
- * @brief Save firmware information to FlashDB after upgrade
- * @param length Firmware length in bytes
- * @param crc32 CRC32 checksum
- */
-void save_firmware_info(uint32_t length, uint32_t crc32)
-{
-    extern struct fdb_kvdb kvdb;
-    /* Save firmware length */
-    flash_set_value(FW_INFO_KEY_LEN, &length, sizeof(length));
-    /* Save firmware CRC32 */
-    flash_set_value(FW_INFO_KEY_CRC, &crc32, sizeof(crc32));
-    /* Set firmware valid flag */
-    uint8_t valid = 1;
-    flash_set_value(FW_INFO_KEY_VALID, &valid, sizeof(valid));
-    LOG_D("Firmware info saved: len=%u, crc32=0x%08X\n", length, crc32);
-}
-
-/**
- * @brief Verify application firmware integrity before jumping
- * @return 0 if valid, negative error code otherwise
- */
-int verify_app_firmware(void)
-{
-    extern struct fdb_kvdb kvdb;
-    fw_info_t fw_info;
-    uint8_t valid = 0;
-
-    /* Check if firmware valid flag exists */
-    flash_get_value(FW_INFO_KEY_VALID, &valid, sizeof(valid));
-    if (valid != 1)
-    {
-        LOG_D("No valid firmware flag found\n");
-        return FW_VERIFY_NO_INFO;
-    }
-
-    /* Read firmware length */
-    flash_get_value(FW_INFO_KEY_LEN, &fw_info.length, sizeof(fw_info.length));
-    if (fw_info.length == 0 || fw_info.length > (256 * 1024))
-    {
-        LOG_D("Invalid firmware length: %u\n", fw_info.length);
-        return FW_VERIFY_INVALID_LEN;
-    }
-
-    /* Read stored CRC32 */
-    flash_get_value(FW_INFO_KEY_CRC, &fw_info.crc32, sizeof(fw_info.crc32));
-    /* Calculate actual CRC32 from flash */
-    uint32_t calculated_crc = fdb_calc_crc32(0, (const void *)(FLASH_APP_ADDR + 0x08000000), fw_info.length);
-
-    LOG_D("Firmware verification:\n");
-    LOG_D("  Length: %u bytes\n", fw_info.length);
-    LOG_D("  Stored CRC32:     0x%08X\n", fw_info.crc32);
-    LOG_D("  Calculated CRC32: 0x%08X\n", calculated_crc);
-
-    /* Compare CRC32 */
-    if (calculated_crc != fw_info.crc32)
-    {
-        LOG_D("CRC32 mismatch! Firmware corrupted!\n");
-        return FW_VERIFY_CRC_FAIL;
-    }
-
-    LOG_D("Firmware verification PASSED\n");
-    return FW_VERIFY_OK;
-}
-
-/**
- * @brief Clear firmware valid flag (used when firmware is corrupted)
- */
-void clear_firmware_valid(void)
-{
-    uint8_t valid = 0;
-    flash_set_value(FW_INFO_KEY_VALID, &valid, sizeof(valid));
-    LOG_D("Firmware valid flag cleared\n");
-}
-
-/**
- * @brief MSH command: Manually verify firmware integrity
- */
-void fw_verify(int argc, char **argv)
-{
-    int result = verify_app_firmware();
-    if (result)
-    {
-        rt_kprintf("FAIL - Error code: %d\n", result);
-    }
-    else
-    {
-        rt_kprintf("PASS - Firmware is valid and ready to use\n");
-    }
-}
-MSH_CMD_EXPORT(fw_verify, Verify firmware integrity);
-
-/**
- * @brief MSH command: Clear firmware valid flag
- */
-void fw_clear(int argc, char **argv)
-{
-    clear_firmware_valid();
-}
-MSH_CMD_EXPORT(fw_clear, Clear firmware valid flag);
