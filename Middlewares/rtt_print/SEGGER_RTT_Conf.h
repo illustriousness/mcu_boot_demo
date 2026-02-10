@@ -424,7 +424,9 @@ void OS_SIM_LeaveCriticalSection(void);
 #ifndef   SEGGER_RTT_UNLOCK
   #define SEGGER_RTT_UNLOCK()              // Unlock RTT (nestable) (i.e. enable previous interrupt lock state)
 #endif
-#define SEGGER_RTT_SECTION "jlink_rtt"
+// #define SEGGER_RTT_SECTION ".jlink_rtt"
+#define SEGGER_RTT_SECTION ".jlink_rtt_cb"
+#define SEGGER_RTT_BUFFER_SECTION ".jlink_rtt_buf"
 /*********************************************************************
 *
 *       If SEGGER_RTT_SECTION is defined but SEGGER_RTT_BUFFER_SECTION

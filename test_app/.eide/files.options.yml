@@ -18,5 +18,3 @@ options:
     Debug:
         files: {}
         virtualPathFiles: {}
-        alwaysBuildSourceFiles:
-            - application/main.c

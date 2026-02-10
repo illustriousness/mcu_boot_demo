@@ -99,7 +99,7 @@ int finsh_set_prompt(const char *prompt)
 
 const char *finsh_get_prompt(void)
 {
-    return  _MSH_PROMPT;
+    return _MSH_PROMPT;
 }
 
 /**
@@ -875,19 +875,15 @@ INIT_APP_EXPORT(finsh_system_init);
 #include "SEGGER_RTT.h"
 int8_t rt_hw_console_getchar(void)
 {
-    // char ch = 0;
+    int8_t ch = -1;
 
-    // if (!usart_read((rt_uint8_t *)&ch, 1))
-    // {
-    //     return -1;
-    // }
-    // return ch;
-    int ch = -1;
-    if (SEGGER_RTT_Read(0, &ch, 1) == 1)
+
+    usart_read((rt_uint8_t *)&ch, 1);
+
+    if (ch == -1)
     {
-        return ch;
+        SEGGER_RTT_Read(0, &ch, 1);
     }
-
     return ch;
 }
 
@@ -899,5 +895,5 @@ int8_t rt_hw_console_getchar(void)
 void rt_hw_console_output(const char *str, rt_uint16_t len)
 {
     SEGGER_RTT_Write(0, str, len);
-    // usart_write((uint8_t *)str, len);
+    usart_write((uint8_t *)str, len);
 }

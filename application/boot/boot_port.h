@@ -6,6 +6,14 @@
 #define BOOT_FLASH_SIZE            (256u * 1024u)
 #define BOOT_FLASH_SECTOR_SIZE     2048u
 
+/* RAM layout (48KB SRAM: 0x20000000 ~ 0x2000BFFF). */
+#define BOOT_SRAM_BASE             0x20000000u
+#define BOOT_SRAM_SIZE             0x0000C000u
+
+/* Shared RAM contract between boot and app. */
+#define BOOT_APP_VTOR_RAM_BASE     0x2000BE00u
+#define BOOT_APP_VTOR_RAM_SIZE     0x0200u
+
 #define BOOTLOADER_OFFSET          0x0000u
 #define BOOTLOADER_SIZE            0x7800u
 

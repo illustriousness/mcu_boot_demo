@@ -34,7 +34,7 @@ int onchip_flash_erase(uint32_t offset, uint32_t size);
 int flash_get_value(char *name, void *value, uint8_t len);
 int flash_set_value(char *name, void *value, uint8_t len);
 
-uint8_t can_write(uint32_t id, uint8_t *msg, uint8_t len);
+uint8_t can_write(uint32_t id, void *msg, uint8_t len);
 uint8_t can_read(can_receive_message_struct *msg);
 
 uint32_t tick_get(void);

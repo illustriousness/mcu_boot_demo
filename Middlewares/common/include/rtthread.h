@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 /******************config***********/
-#define RT_CONSOLEBUF_SIZE 128
+#define RT_CONSOLEBUF_SIZE 256
 #define RT_PRINTF_PRECISION
 #define PKG_USING_SEGGER_RTT
 /************end of config***********/

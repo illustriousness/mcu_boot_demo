@@ -58,7 +58,7 @@ void USBD_LP_CAN0_RX0_IRQHandler(void)
 }
 
 
-uint8_t can_write(uint32_t id, uint8_t* msg, uint8_t len)
+uint8_t can_write(uint32_t id, void* msg, uint8_t len)
 {
     can_trasnmit_message_struct TxMessage = { 0 };
     if (id > 0x7FF) {

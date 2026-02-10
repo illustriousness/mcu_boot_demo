@@ -32,7 +32,6 @@ targets:
       - application/boot/bootutil/src/ram_load.c
       - ../middleware/rtt_print/SEGGER_RTT_ASM_ARMv7M.S
       - ../middleware/rtt_print/segger_rtt_device.c
-      - application/upgrade.c
       - application/flash.c
       - Drivers/gd_stdlib/startup_gd32f30x_hd.s
     toolchain: GCC
@@ -81,7 +80,7 @@ targets:
       GCC:
         archExtensions: ""
         cpuType: Cortex-M4
-        floatingPointHardware: none
+        floatingPointHardware: single
         options:
           version: 5
           afterBuildTasks: []
@@ -92,7 +91,7 @@ targets:
             language-cpp: c++11
             one-elf-section-per-data: true
             one-elf-section-per-function: true
-            optimization: level-debug
+            optimization: level-1
             warnings: all-warnings
           global:
             $float-abi-type: hard
@@ -105,7 +104,7 @@ targets:
             LIB_FLAGS: -lm
             output-format: elf
             remove-unused-input-sections: true
-        scatterFilePath: linker_scripts\link_ld
+        scatterFilePath: linker_scripts\link.ld
         storageLayout:
           RAM: []
           ROM: []

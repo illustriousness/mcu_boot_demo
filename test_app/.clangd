@@ -1,0 +1,11 @@
+CompileFlags:
+  Add:
+    - -Ic:\users\admin\.eide\tools\gcc_arm\arm-none-eabi\include\c++\10.2.1
+    - -Ic:\users\admin\.eide\tools\gcc_arm\arm-none-eabi\include\c++\10.2.1\arm-none-eabi\thumb\v7e-m+fp\softfp
+    - -Ic:\users\admin\.eide\tools\gcc_arm\arm-none-eabi\include\c++\10.2.1\backward
+    - -Ic:\users\admin\.eide\tools\gcc_arm\lib\gcc\arm-none-eabi\10.2.1\include
+    - -Ic:\users\admin\.eide\tools\gcc_arm\lib\gcc\arm-none-eabi\10.2.1\include-fixed
+    - -Ic:\users\admin\.eide\tools\gcc_arm\arm-none-eabi\include
+  Remove: []
+  CompilationDatabase: ./build/Debug
+  Compiler: C:\Users\admin\.eide\tools\gcc_arm\bin\arm-none-eabi-gcc.exe

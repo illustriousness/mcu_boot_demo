@@ -12,7 +12,7 @@
 
 // #include <rtdef.h>
 // #include <rtthread.h>
-// #define RT_USING_MODULE
+#define RT_USING_MODULE
 
 #ifdef RT_USING_MODULE
 struct rt_module_symtab
@@ -31,8 +31,8 @@ __declspec(allocate("RTMSymTab$f"))const char __rtmsym_##symbol##_name[] = "__vs
 #define RTM_EXPORT(symbol)
 
 #else
-#define RTM_EXPORT(symbol)
-#if 0
+// #define RTM_EXPORT(symbol)
+#if 1
 #define RTM_EXPORT(symbol)                                            \
 const char __rtmsym_##symbol##_name[] RT_SECTION(".rodata.name") = #symbol; \
 const struct rt_module_symtab __rtmsym_##symbol RT_SECTION("RTMSymTab")= \

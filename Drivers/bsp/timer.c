@@ -8,12 +8,14 @@
 #include "timer.h"
 
 
-static volatile uint32_t tick = 0;
+static volatile uint32_t tick;
 list_t _timer_list[TIMER_SKIP_LIST_LEVEL];
 
 void tick_init(void)
 {
-    SysTick_Config(SystemCoreClock / 1000U);
+    // SysTick_Config(SystemCoreClock / 1000U);
+    tick = 0;
+    SysTick_Config(120000000U / 1000U);
     NVIC_SetPriority(SysTick_IRQn, 0x00U);
 }
 
@@ -29,7 +31,7 @@ void SysTick_Handler(void)
 
 
 static void
-_timer_init(rt_timer_t timer, void (*timeout)(void* parameter), void* parameter, uint32_t time, uint8_t flag)
+_timer_init(rt_timer_t timer, void (*timeout)(void *parameter), void *parameter, uint32_t time, uint8_t flag)
 {
     int i;
 
@@ -40,13 +42,14 @@ _timer_init(rt_timer_t timer, void (*timeout)(void* parameter), void* parameter,
     timer->flag &= ~RT_TIMER_FLAG_ACTIVATED;
 
     timer->timeout_func = timeout;
-    timer->parameter    = parameter;
+    timer->parameter = parameter;
 
     timer->timeout_tick = 0;
-    timer->init_tick    = time;
+    timer->init_tick = time;
 
     /* 初始化定时器列表 */
-    for (i = 0; i < TIMER_SKIP_LIST_LEVEL; i++) {
+    for (i = 0; i < TIMER_SKIP_LIST_LEVEL; i++)
+    {
         rt_list_init(&(timer->row[i]));
     }
 }
@@ -96,12 +99,13 @@ rt_inline void _timer_remove(rt_timer_t timer)
 {
     int i;
 
-    for (i = 0; i < TIMER_SKIP_LIST_LEVEL; i++) {
+    for (i = 0; i < TIMER_SKIP_LIST_LEVEL; i++)
+    {
         rt_list_remove(&timer->row[i]);
     }
 }
 
-void rt_timer_init(rt_timer_t timer, void (*timeout)(void* parameter), void* parameter, uint32_t time, uint8_t flag)
+void rt_timer_init(rt_timer_t timer, void (*timeout)(void *parameter), void *parameter, uint32_t time, uint8_t flag)
 {
     _timer_init(timer, timeout, parameter, time, flag);
 }
@@ -147,10 +151,10 @@ int8_t rt_timer_detach(rt_timer_t timer)
 int8_t rt_timer_start(rt_timer_t timer)
 {
     unsigned int row_lvl;
-    list_t* timer_list;
+    list_t *timer_list;
     // rt_base_t           level;
     // rt_bool_t           need_schedule;
-    list_t* row_head[TIMER_SKIP_LIST_LEVEL];
+    list_t *row_head[TIMER_SKIP_LIST_LEVEL];
     unsigned int tst_nr;
     static unsigned int random_nr;
 
@@ -173,17 +177,21 @@ int8_t rt_timer_start(rt_timer_t timer)
 
 
     row_head[0] = &timer_list[0];
-    for (row_lvl = 0; row_lvl < TIMER_SKIP_LIST_LEVEL; row_lvl++) {
-        for (; row_head[row_lvl] != timer_list[row_lvl].prev; row_head[row_lvl] = row_head[row_lvl]->next) {
-            struct rt_timer* t;
-            list_t* p = row_head[row_lvl]->next;
+    for (row_lvl = 0; row_lvl < TIMER_SKIP_LIST_LEVEL; row_lvl++)
+    {
+        for (; row_head[row_lvl] != timer_list[row_lvl].prev; row_head[row_lvl] = row_head[row_lvl]->next)
+        {
+            struct rt_timer *t;
+            list_t *p = row_head[row_lvl]->next;
 
             t = rt_list_entry(p, struct rt_timer, row[row_lvl]);
 
-            if ((t->timeout_tick - timer->timeout_tick) == 0) {
+            if ((t->timeout_tick - timer->timeout_tick) == 0)
+            {
                 continue;
             }
-            else if ((t->timeout_tick - timer->timeout_tick) < RT_TICK_MAX / 2) {
+            else if ((t->timeout_tick - timer->timeout_tick) < RT_TICK_MAX / 2)
+            {
                 break;
             }
         }
@@ -195,7 +203,8 @@ int8_t rt_timer_start(rt_timer_t timer)
     tst_nr = random_nr;
 
     rt_list_insert_after(row_head[TIMER_SKIP_LIST_LEVEL - 1], &(timer->row[TIMER_SKIP_LIST_LEVEL - 1]));
-    for (row_lvl = 2; row_lvl <= TIMER_SKIP_LIST_LEVEL; row_lvl++) {
+    for (row_lvl = 2; row_lvl <= TIMER_SKIP_LIST_LEVEL; row_lvl++)
+    {
         if (!(tst_nr & TIMER_SKIP_LIST_MASK))
             rt_list_insert_after(
                 row_head[TIMER_SKIP_LIST_LEVEL - row_lvl], &(timer->row[TIMER_SKIP_LIST_LEVEL - row_lvl]));
@@ -242,7 +251,7 @@ int8_t rt_timer_stop(rt_timer_t timer)
  */
 void rt_timer_check(void)
 {
-    struct rt_timer* t;
+    struct rt_timer *t;
     uint32_t current_tick;
     // rt_base_t        level;
     list_t list;
@@ -256,19 +265,22 @@ void rt_timer_check(void)
     /* 禁用中断 */
     // level = rt_hw_interrupt_disable();
 
-    while (!rt_list_isempty(&_timer_list[TIMER_SKIP_LIST_LEVEL - 1])) {
+    while (!rt_list_isempty(&_timer_list[TIMER_SKIP_LIST_LEVEL - 1]))
+    {
         t = rt_list_entry(_timer_list[TIMER_SKIP_LIST_LEVEL - 1].next, struct rt_timer, row[TIMER_SKIP_LIST_LEVEL - 1]);
 
         /*
          *假设新的tick应小于当前tick持续时间的一半
          *勾选最大。
          */
-        if ((current_tick - t->timeout_tick) < RT_TICK_MAX / 2) {
+        if ((current_tick - t->timeout_tick) < RT_TICK_MAX / 2)
+        {
             // RT_OBJECT_HOOK_CALL(rt_timer_enter_hook, (t));
 
             /* 首先从计时器列表中删除计时器 */
             _timer_remove(t);
-            if (!(t->flag & RT_TIMER_FLAG_PERIODIC)) {
+            if (!(t->flag & RT_TIMER_FLAG_PERIODIC))
+            {
                 t->flag &= ~RT_TIMER_FLAG_ACTIVATED;
             }
             /* 将计时器添加到临时列表  */
@@ -279,11 +291,13 @@ void rt_timer_check(void)
             /* 重新获得勾选 */
             current_tick = tick_get();
 
-            if (rt_list_isempty(&list)) {
+            if (rt_list_isempty(&list))
+            {
                 continue;
             }
             rt_list_remove(&(t->row[TIMER_SKIP_LIST_LEVEL - 1]));
-            if ((t->flag & RT_TIMER_FLAG_PERIODIC) && (t->flag & RT_TIMER_FLAG_ACTIVATED)) {
+            if ((t->flag & RT_TIMER_FLAG_PERIODIC) && (t->flag & RT_TIMER_FLAG_ACTIVATED))
+            {
                 /* 开始吧 */
                 t->flag &= ~RT_TIMER_FLAG_ACTIVATED;
                 rt_timer_start(t);
@@ -307,7 +321,8 @@ void rt_system_timer_init(void)
     uint32_t i;
     tick_init();
 
-    for (i = 0; i < sizeof(_timer_list) / sizeof(_timer_list[0]); i++) {
+    for (i = 0; i < sizeof(_timer_list) / sizeof(_timer_list[0]); i++)
+    {
         rt_list_init(_timer_list + i);
     }
 }

@@ -1,0 +1,81 @@
+version: "4.1"
+name: test_app
+type: ARM
+deviceName: null
+packDir: null
+srcDirs:
+  - ../Middlewares/rtt_print
+  - app
+  - ../Middlewares/common
+  - ../Middlewares/finsh
+  - ../Drivers
+virtualFolder:
+  name: <virtual_root>
+  files: []
+  folders: []
+dependenceList: []
+outDir: build
+miscInfo:
+  uid: 9743c51f88ef5647dc7eb9d4bd2e97c1
+targets:
+  Debug:
+    cppPreprocessAttrs:
+      defineList:
+        - GD32F30X_HD
+      incList: []
+      libList: []
+    excludeList:
+      - ../Middlewares/rtt_print/segger_rtt_device.c
+      - ../Drivers/bsp/bsp_can.c
+      - ../Drivers/gd_stdlib/gcc_startup_gd32f30x_hd.s
+      - ../Drivers/gd_stdlib/startup_gd32f30x_hd.s
+    toolchain: GCC
+    toolchainConfigMap:
+      GCC:
+        archExtensions: ""
+        cpuType: Cortex-M4
+        floatingPointHardware: single
+        options:
+          version: 5
+          afterBuildTasks: []
+          asm-compiler: {}
+          beforeBuildTasks: []
+          c/cpp-compiler:
+            language-c: c11
+            language-cpp: gnu++11
+            one-elf-section-per-data: true
+            one-elf-section-per-function: true
+            optimization: level-0
+            signed-char: true
+            warnings: all-warnings
+          global:
+            $float-abi-type: softfp
+            arm-thumb-mode: thumb
+            misc-control: -fPIC -msingle-pic-base -mpic-register=r9 -mno-pic-data-is-text-relative
+            output-debug-info: enable
+          linker:
+            $toolName: auto
+            LD_FLAGS: -pie
+            output-format: elf
+            print-mem-usage: true
+            remove-unused-input-sections: true
+        scatterFilePath: app\link.ld
+        storageLayout:
+          RAM: []
+          ROM: []
+        useCustomScatterFile: true
+    uploadConfigMap:
+      Custom:
+        bin: /build/Debug/test_app.bin
+        commandLine: ""
+        eraseChipCommand: ""
+      JLink:
+        baseAddr: 0X08007800
+        bin: build/Debug/test_app.bin
+        cpuInfo:
+          cpuName: GD32F303CC
+          vendor: "null"
+        otherCmds: ""
+        proType: 1
+        speed: 8000
+    uploader: JLink

@@ -4,10 +4,23 @@
 #include "rtm.h"
 #include "shell.h"
 #include "upgrade.h"
+#include "boot_port.h"
 #include "flashdb.h"
 #include "fdb_low_lvl.h"
+#include <stdlib.h>
 // #define LOG_D(...) rt_kprintf(__VA_ARGS__)
-// #define LOG_D(...)
+#define LOG_D(...)
+#define APP_DIAG_MARK_ADDR 0x2000BF80u
+
+static void run_app_log_drain_delay(void)
+{
+    volatile uint32_t i;
+
+    for (i = 0; i < 2000000u; i++)
+    {
+        __asm volatile("nop");
+    }
+}
 
 /* FlashDB keys for firmware info */
 #define FW_INFO_KEY_LEN   "fw_len"
@@ -211,12 +224,12 @@ uint8_t app_can_upgrade(void)
                         if (crc32 == *file_crc32)
                         {
                             /* Save firmware info to FlashDB for future verification */
-                            save_firmware_info(total_len - 4, crc32);
+                            // save_firmware_info(total_len - 4, crc32);
                             state = CAN_UPGRADE_DONE;
                         }
                         else
                         {
-                            LOG_E("CRC32 mismatch! Firmware corrupted!\n");
+                            // LOG_E("CRC32 mismatch! Firmware corrupted!\n");
                             state = CAN_UPGRADE_ETIMEOUT;
                         }
 
@@ -245,114 +258,70 @@ uint8_t app_can_upgrade(void)
 
 void run_app(int argc, char **argv)
 {
+    const char *arg;
     uint32_t app_addr = 0x08000000 + 30 * 1024; // 应用程序的起始地址
+    uint32_t flash_end = BOOT_FLASH_BASE + BOOT_FLASH_SIZE;
+
+    rt_kprintf("[run_app] enter argc=%d\n", argc);
+
     if (argc == 2)
     {
-        // app_addr = skip_atoi((const char** )&argv[1]);
-        app_addr = rt_atoi(argv[1]);
+        arg = argv[1];
+        if ((arg[0] == '0') && ((arg[1] == 'x') || (arg[1] == 'X')))
+        {
+            app_addr = (uint32_t)strtoul(arg + 2, RT_NULL, 16);
+        }
+        else
+        {
+            app_addr = (uint32_t)strtoul(arg, RT_NULL, 10);
+        }
     }
+
+    if ((app_addr < BOOT_FLASH_BASE) || (app_addr >= flash_end) || ((app_addr & 0x3u) != 0u))
+    {
+        rt_kprintf("[run_app] invalid addr=0x%08lx\n", (unsigned long)app_addr);
+        return;
+    }
+
     LOG_D("run app at 0x%08x\n", app_addr);
+    rt_kprintf("[run_app] addr=0x%08lx vec0=0x%08lx vec1=0x%08lx\n",
+               (unsigned long)app_addr,
+               (unsigned long)(*(volatile uint32_t *)app_addr),
+               (unsigned long)(*(volatile uint32_t *)(app_addr + 4u)));
+    // run_app_log_drain_delay();
     JumpToApplication(app_addr);
 }
 MSH_CMD_EXPORT(run_app, desc);
 
-/**
- * @brief Save firmware information to FlashDB after upgrade
- * @param length Firmware length in bytes
- * @param crc32 CRC32 checksum
- */
-void save_firmware_info(uint32_t length, uint32_t crc32)
+void app_diag(void)
 {
-    extern struct fdb_kvdb kvdb;
-    /* Save firmware length */
-    flash_set_value(FW_INFO_KEY_LEN, &length, sizeof(length));
-    /* Save firmware CRC32 */
-    flash_set_value(FW_INFO_KEY_CRC, &crc32, sizeof(crc32));
-    /* Set firmware valid flag */
-    uint8_t valid = 1;
-    flash_set_value(FW_INFO_KEY_VALID, &valid, sizeof(valid));
-    LOG_D("Firmware info saved: len=%u, crc32=0x%08X\n", length, crc32);
+    uint32_t mark = *(volatile uint32_t *)(uintptr_t)APP_DIAG_MARK_ADDR;
+    rt_kprintf("[app_diag] mark=0x%08lx\n", (unsigned long)mark);
 }
+MSH_CMD_EXPORT(app_diag, app jump diag marker);
 
-/**
- * @brief Verify application firmware integrity before jumping
- * @return 0 if valid, negative error code otherwise
- */
-int verify_app_firmware(void)
+void app_diag_clr(void)
 {
-    extern struct fdb_kvdb kvdb;
-    fw_info_t fw_info;
-    uint8_t valid = 0;
-
-    /* Check if firmware valid flag exists */
-    flash_get_value(FW_INFO_KEY_VALID, &valid, sizeof(valid));
-    if (valid != 1)
-    {
-        LOG_D("No valid firmware flag found\n");
-        return FW_VERIFY_NO_INFO;
-    }
-
-    /* Read firmware length */
-    flash_get_value(FW_INFO_KEY_LEN, &fw_info.length, sizeof(fw_info.length));
-    if (fw_info.length == 0 || fw_info.length > (256 * 1024))
-    {
-        LOG_D("Invalid firmware length: %u\n", fw_info.length);
-        return FW_VERIFY_INVALID_LEN;
-    }
-
-    /* Read stored CRC32 */
-    flash_get_value(FW_INFO_KEY_CRC, &fw_info.crc32, sizeof(fw_info.crc32));
-    /* Calculate actual CRC32 from flash */
-    uint32_t calculated_crc = fdb_calc_crc32(0, (const void *)(FLASH_APP_ADDR + 0x08000000), fw_info.length);
-
-    LOG_D("Firmware verification:\n");
-    LOG_D("  Length: %u bytes\n", fw_info.length);
-    LOG_D("  Stored CRC32:     0x%08X\n", fw_info.crc32);
-    LOG_D("  Calculated CRC32: 0x%08X\n", calculated_crc);
-
-    /* Compare CRC32 */
-    if (calculated_crc != fw_info.crc32)
-    {
-        LOG_D("CRC32 mismatch! Firmware corrupted!\n");
-        return FW_VERIFY_CRC_FAIL;
-    }
-
-    LOG_D("Firmware verification PASSED\n");
-    return FW_VERIFY_OK;
+    *(volatile uint32_t *)(uintptr_t)APP_DIAG_MARK_ADDR = 0u;
+    rt_kprintf("[app_diag] cleared\n");
 }
+MSH_CMD_EXPORT(app_diag_clr, clear app jump diag marker);
 
-/**
- * @brief Clear firmware valid flag (used when firmware is corrupted)
- */
-void clear_firmware_valid(void)
+void reset_flags(void)
 {
-    uint8_t valid = 0;
-    flash_set_value(FW_INFO_KEY_VALID, &valid, sizeof(valid));
-    LOG_D("Firmware valid flag cleared\n");
+    rt_kprintf("[reset_flags] EPRST=%d PORRST=%d SWRST=%d FWDGTRST=%d WWDGTRST=%d LPRST=%d\n",
+               rcu_flag_get(RCU_FLAG_EPRST),
+               rcu_flag_get(RCU_FLAG_PORRST),
+               rcu_flag_get(RCU_FLAG_SWRST),
+               rcu_flag_get(RCU_FLAG_FWDGTRST),
+               rcu_flag_get(RCU_FLAG_WWDGTRST),
+               rcu_flag_get(RCU_FLAG_LPRST));
 }
+MSH_CMD_EXPORT(reset_flags, show reset source flags);
 
-/**
- * @brief MSH command: Manually verify firmware integrity
- */
-void fw_verify(int argc, char **argv)
+void reset_flags_clr(void)
 {
-    int result = verify_app_firmware();
-    if (result)
-    {
-        rt_kprintf("FAIL - Error code: %d\n", result);
-    }
-    else
-    {
-        rt_kprintf("PASS - Firmware is valid and ready to use\n");
-    }
+    rcu_all_reset_flag_clear();
+    rt_kprintf("[reset_flags] cleared\n");
 }
-MSH_CMD_EXPORT(fw_verify, Verify firmware integrity);
-
-/**
- * @brief MSH command: Clear firmware valid flag
- */
-void fw_clear(int argc, char **argv)
-{
-    clear_firmware_valid();
-}
-MSH_CMD_EXPORT(fw_clear, Clear firmware valid flag);
+MSH_CMD_EXPORT(reset_flags_clr, clear reset source flags);

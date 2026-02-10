@@ -11,10 +11,7 @@ static void mcuboot_jump(const struct boot_rsp *rsp)
 {
     uint32_t image_addr = BOOT_FLASH_BASE + rsp->br_image_off + rsp->br_hdr->ih_hdr_size;
     rt_kprintf("Jump to image at 0x%08lx\n", (unsigned long)image_addr);
-    // while (1)
-    // {
-    // }
-    // JumpToApplication(image_addr);
+    JumpToApplication(image_addr);
 }
 #include "finsh.h"
 void mcuboot_start(void)
@@ -40,4 +37,4 @@ exit:
     //     rt_timer_check();
     // }
 }
-MSH_CMD_EXPORT(mcuboot_start, desc);
+// MSH_CMD_EXPORT(mcuboot_start, desc);
