@@ -19,23 +19,18 @@ static void app_diag_mark(uint32_t value)
 #define APP_JUMP_LOG(...) ((void)0)
 #endif
 
-static void jump_to_app(uint32_t msp, uint32_t vtor, uint32_t entry, uint32_t pic_base)
+static void jump_to_app(uint32_t msp, uint32_t entry)
 {
     void (*AppEntry)(uint32_t RTMSymTab_Base, uint32_t RTMSymTab_Limit);
 
     app_diag_mark(0xA5A50020u);
     AppEntry = (void (*)(uint32_t, uint32_t))(entry | 0x1u);
 
-    SCB->VTOR = vtor;
-    __DSB();
-    __ISB();
-
     __set_MSP(msp);
     __set_PSP(msp);
     __set_CONTROL(0);
     __ISB();
 
-    __asm volatile("mov r9, %0" : : "r"(pic_base) : "r9");
     app_diag_mark(0xA5A50021u);
 
     app_diag_mark(0xA5A50022u);
@@ -49,9 +44,7 @@ static void jump_to_app(uint32_t msp, uint32_t vtor, uint32_t entry, uint32_t pi
 void JumpToApplication(uint32_t app_addr)
 {
     uint32_t msp;
-    uint32_t vtor;
     uint32_t entry;
-    uint32_t pic_base;
     uint32_t i;
     struct app_exec_context ctx;
     int rc;
@@ -94,10 +87,8 @@ void JumpToApplication(uint32_t app_addr)
     {
         app_diag_mark(0xA5A50012u);
         msp = ctx.msp;
-        vtor = ctx.vtor;
         entry = ctx.entry;
-        pic_base = ctx.pic_base;
-        jump_to_app(msp, vtor, entry, pic_base);
+        jump_to_app(msp, entry);
     }
     else
     {

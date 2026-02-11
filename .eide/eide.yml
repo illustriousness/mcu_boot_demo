@@ -7,8 +7,6 @@ srcDirs:
   - application
   - Drivers
   - Middlewares
-  - Drivers/gd_stdlib
-  - Middlewares/rtt_print
 virtualFolder:
   name: <virtual_root>
   files: []
@@ -22,8 +20,29 @@ targets:
     cppPreprocessAttrs:
       defineList:
         - GD32F30X_HD
-      incList:
+      incList: 
+        - application
         - application/boot
+        - application/boot/tinycrypt
+        - application/boot/sysflash
+        - application/boot/os
+        - application/boot/mcuboot_config
+        - application/boot/mbedtls
+        - application/boot/flash_map_backend
+        - application/boot/flash_map
+        - application/boot/bootutil
+        - application/boot/bootutil/src
+        - application/boot/bootutil/crypto
+        - Drivers/ipc
+        - Drivers/gd_stdlib
+        - Drivers/gd_stdlib/src
+        - Drivers/gd_stdlib/inc
+        - Drivers/CMSIS
+        - Drivers/bsp
+        - Middlewares/rtt_print
+        - Middlewares/finsh
+        - Middlewares/common/src
+        - Middlewares/common/include
       libList: []
     excludeList:
       - Middlewares/mcuboot
@@ -34,6 +53,7 @@ targets:
       - ../middleware/rtt_print/segger_rtt_device.c
       - application/flash.c
       - Drivers/gd_stdlib/startup_gd32f30x_hd.s
+      - Middlewares/mykvdb
     toolchain: GCC
     toolchainConfigMap:
       AC5:
@@ -92,6 +112,7 @@ targets:
             one-elf-section-per-data: true
             one-elf-section-per-function: true
             optimization: level-1
+            turn-Warning-into-errors: true
             warnings: all-warnings
           global:
             $float-abi-type: hard

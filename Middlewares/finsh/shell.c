@@ -54,8 +54,7 @@
 
 RT_SECTION(".shared_ram")
 struct finsh_shell *shell;
-RT_SECTION(".shared_ram")
-static char *finsh_prompt_custom = RT_NULL;
+
 
 #if defined(_MSC_VER) || (defined(__GNUC__) && defined(__x86_64__))
 struct finsh_syscall *finsh_syscall_next(struct finsh_syscall *call)
@@ -71,6 +70,8 @@ struct finsh_syscall *finsh_syscall_next(struct finsh_syscall *call)
 #endif /* defined(_MSC_VER) || (defined(__GNUC__) && defined(__x86_64__)) */
 
 #ifdef RT_USING_HEAP
+static char *finsh_prompt_custom = RT_NULL;
+
 int finsh_set_prompt(const char *prompt)
 {
     if (finsh_prompt_custom)
@@ -871,7 +872,7 @@ void finsh_system_init(void)
 INIT_APP_EXPORT(finsh_system_init);
 
 
-// #include "usart.h"
+#include "usart.h"
 #include "SEGGER_RTT.h"
 int8_t rt_hw_console_getchar(void)
 {

@@ -111,7 +111,7 @@ int main()
 }
 void say_hello(void *parameter)
 {
-    rt_kprintf("hello! this program build time is %s %s\n", __DATE__, __TIME__);
+    rt_kprintf("hello! this app build time is %s %s\n", __DATE__, __TIME__);
 }
 MSH_CMD_EXPORT(say_hello, desc);
 

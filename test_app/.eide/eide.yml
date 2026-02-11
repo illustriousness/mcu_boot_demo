@@ -22,7 +22,18 @@ targets:
     cppPreprocessAttrs:
       defineList:
         - GD32F30X_HD
-      incList: []
+      incList: 
+        - ../Middlewares/rtt_print
+        - app
+        - ../Middlewares/common/src
+        - ../Middlewares/common/include
+        - ../Middlewares/finsh
+        - ../Drivers/ipc
+        - ../Drivers/gd_stdlib
+        - ../Drivers/gd_stdlib/src
+        - ../Drivers/gd_stdlib/inc
+        - ../Drivers/CMSIS
+        - ../Drivers/bsp"
       libList: []
     excludeList:
       - ../Middlewares/rtt_print/segger_rtt_device.c

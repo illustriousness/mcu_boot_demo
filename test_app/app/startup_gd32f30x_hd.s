@@ -13,7 +13,13 @@
 .fpu softvfp
 .thumb
 
-.equ APP_DIAG_MARK_ADDR, 0x2000BF80
+.equ APP_DIAG_MARK_ADDR,           0x2000BF80
+.equ APP_VTOR_RAM_BASE,            0x2000BE00
+.equ APP_FLASH_END,                0x08040000
+.equ APP_RELOC_LINK_BASE_OFF,      12
+.equ APP_RELOC_VECTOR_VMA_OFF,     16
+.equ APP_RELOC_VECTOR_SIZE_OFF,    20
+.equ APP_RELOC_GOT_VMA_OFF,        40
 
 .global  g_pfnVectors
 .global  Default_Handler
@@ -112,17 +118,71 @@ Reset_Handler:
     ldr r3, =0xA5A5B100
     str r3, [r2]
 
-    /* Compute runtime flash delta from relocated vector table. */
-    ldr r0, =0xE000ED08
-    ldr r0, [r0]
-    ldr r0, [r0, #4]
+    /* Compute runtime flash delta without boot-provided VTOR. */
+    adr r0, Reset_Handler
     bic r0, r0, #1
     ldr r1, =Reset_Handler
     bic r1, r1, #1
-    subs r0, r0, r1
+    subs r8, r0, r1
+
+    /* Runtime reloc header pointer = __app_reloc_info + delta. */
+    ldr r4, =__app_reloc_info
+    add r4, r4, r8
+
+    /* Set PIC base (r9) before any C call. */
+    ldr r9, [r4, #APP_RELOC_GOT_VMA_OFF]
+    cmp r9, #0
+    bne vector_copy_prepare
+    ldr r9, =_sdata
+
+vector_copy_prepare:
+    /* Copy vector table to RAM shadow and relocate FLASH handlers. */
+    ldr r5, [r4, #APP_RELOC_VECTOR_VMA_OFF]
+    add r5, r5, r8
+    ldr r6, =APP_VTOR_RAM_BASE
+    ldr r7, [r4, #APP_RELOC_VECTOR_SIZE_OFF]
+    mov r3, r7
+
+vector_copy_loop:
+    cmp r3, #0
+    beq vector_reloc_begin
+    ldr r0, [r5], #4
+    str r0, [r6], #4
+    subs r3, #4
+    bne vector_copy_loop
+
+vector_reloc_begin:
+    ldr r6, =APP_VTOR_RAM_BASE
+    lsrs r7, r7, #2
+    cmp r7, #1
+    bls vtor_set
+    movs r3, #1
+    ldr r5, [r4, #APP_RELOC_LINK_BASE_OFF]
+    ldr r1, =APP_FLASH_END
+
+vector_reloc_loop:
+    ldr r0, [r6, r3, lsl #2]
+    cmp r0, r5
+    blo vector_reloc_next
+    cmp r0, r1
+    bhs vector_reloc_next
+    add r0, r0, r8
+    str r0, [r6, r3, lsl #2]
+
+vector_reloc_next:
+    adds r3, #1
+    cmp r3, r7
+    blo vector_reloc_loop
+
+vtor_set:
+    ldr r0, =0xE000ED08
+    ldr r1, =APP_VTOR_RAM_BASE
+    str r1, [r0]
+    dsb
+    isb
 
     ldr r1, =_sidata
-    adds r1, r0
+    add r1, r1, r8
     ldr r2, =_sdata
     ldr r3, =_edata
 
@@ -153,15 +213,9 @@ app_reloc_enter:
     str r3, [r2]
 
     /* runtime relocation for RAM targets after .data/.bss are ready */
-    ldr r0, =0xE000ED08
-    ldr r0, [r0]
-    ldr r0, [r0, #4]
-    bic r0, r0, #1
-    ldr r1, =Reset_Handler
-    bic r1, r1, #1
-    subs r1, r0, r1
     ldr r0, =__app_reloc_info
-    adds r0, r1
+    add r0, r0, r8
+    mov r1, r8
     bl app_runtime_relocate_from_reset
 
 startup_enter:

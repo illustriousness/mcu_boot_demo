@@ -14,27 +14,13 @@
 
 #define APP_RELOC_MAGIC             0x524C4F43u /* "RLOC" */
 #define APP_RELOC_VERSION           1u
-#define APP_RELOC_HEADER_MIN_SIZE   (15u * 4u)
-#define APP_RELOC_HEADER_GOT_SIZE   (16u * 4u)
+#define APP_RELOC_HEADER_MIN_SIZE   (11u * 4u)
 #define APP_RELOC_SEARCH_BYTES      0x400u
 #define APP_RELOC_ARM_RELATIVE      23u
-#define APP_RELOC_VECTOR_ALIGN      128u
-#define APP_RELOC_STARTUP_WINDOW    0x100u
+#define APP_RELOC_STARTUP_WINDOW    0x200u
 
 #define APP_RELOC_FLASH_END         (BOOT_FLASH_BASE + BOOT_FLASH_SIZE)
 #define APP_RELOC_SRAM_END          (BOOT_SRAM_BASE + BOOT_SRAM_SIZE)
-
-#if ((BOOT_APP_VTOR_RAM_BASE & (APP_RELOC_VECTOR_ALIGN - 1u)) != 0u)
-#error "BOOT_APP_VTOR_RAM_BASE must be 128-byte aligned"
-#endif
-
-#if ((BOOT_APP_VTOR_RAM_SIZE & 0x3u) != 0u)
-#error "BOOT_APP_VTOR_RAM_SIZE must be word-aligned"
-#endif
-
-#if (BOOT_APP_VTOR_RAM_SIZE < 0x130u)
-#error "BOOT_APP_VTOR_RAM_SIZE is too small for GD32F30x vector table"
-#endif
 
 typedef struct
 {
@@ -47,11 +33,6 @@ typedef struct
     uint32_t rel_dyn_vma;
     uint32_t rel_dyn_size;
     uint32_t rel_ent_size;
-    uint32_t data_lma_vma;
-    uint32_t data_vma;
-    uint32_t data_end_vma;
-    uint32_t bss_start_vma;
-    uint32_t bss_end_vma;
     uint32_t entry_vma;
     uint32_t got_vma;
 } app_reloc_info_t;
@@ -61,9 +42,6 @@ typedef struct
     uint32_t r_offset;
     uint32_t r_info;
 } elf32_rel_t;
-
-static uint32_t g_app_vector_shadow[BOOT_APP_VTOR_RAM_SIZE / sizeof(uint32_t)]
-    __attribute__((section(".app_vtor"), aligned(APP_RELOC_VECTOR_ALIGN), used));
 
 static int range_is_valid(uint32_t start, uint32_t size, uint32_t low, uint32_t high)
 {
@@ -142,10 +120,6 @@ static int validate_reloc_info(uint32_t app_addr, const app_reloc_info_t *info)
     {
         return -RT_EINVAL;
     }
-    if (info->vector_size > sizeof(g_app_vector_shadow))
-    {
-        return -RT_EINVAL;
-    }
     if (info->vector_vma < info->link_base)
     {
         return -RT_EINVAL;
@@ -158,42 +132,12 @@ static int validate_reloc_info(uint32_t app_addr, const app_reloc_info_t *info)
     {
         return -RT_EINVAL;
     }
-    if ((info->data_end_vma < info->data_vma) || (info->bss_end_vma < info->bss_start_vma))
+    if ((info->got_vma != 0u) && !range_in_sram(info->got_vma, sizeof(uint32_t)))
     {
         return -RT_EINVAL;
-    }
-    if (!range_in_sram(info->data_vma, info->data_end_vma - info->data_vma))
-    {
-        return -RT_EINVAL;
-    }
-    if (!range_in_sram(info->bss_start_vma, info->bss_end_vma - info->bss_start_vma))
-    {
-        return -RT_EINVAL;
-    }
-    if (info->struct_size >= APP_RELOC_HEADER_GOT_SIZE)
-    {
-        if ((info->got_vma != 0u) && !range_in_sram(info->got_vma, sizeof(uint32_t)))
-        {
-            return -RT_EINVAL;
-        }
     }
 
     return RT_EOK;
-}
-
-static void relocate_vector_table(uint32_t link_base, int32_t delta, uint32_t vector_words)
-{
-    uint32_t i;
-
-    for (i = 1; i < vector_words; i++)
-    {
-        uint32_t value = g_app_vector_shadow[i];
-
-        if ((value >= link_base) && (value < APP_RELOC_FLASH_END))
-        {
-            g_app_vector_shadow[i] = (uint32_t)((int32_t)value + delta);
-        }
-    }
 }
 
 static int reject_flash_relocation_targets(uint32_t app_addr, const app_reloc_info_t *info)
@@ -227,7 +171,8 @@ static int reject_flash_relocation_targets(uint32_t app_addr, const app_reloc_in
     vector_start = info->vector_vma;
     vector_end = info->vector_vma + info->vector_size;
     startup_start = info->entry_vma & ~0x1u;
-    startup_end = startup_start + APP_RELOC_STARTUP_WINDOW;
+    /* Include the upper boundary word to avoid edge false positives. */
+    startup_end = startup_start + APP_RELOC_STARTUP_WINDOW + sizeof(uint32_t);
     if (vector_end < vector_start)
     {
         return -RT_EINVAL;
@@ -272,10 +217,9 @@ int app_prepare_exec(uint32_t app_addr, struct app_exec_context *ctx)
 {
     const app_reloc_info_t *info;
     uint32_t vector_src;
-    uint32_t vector_words;
+    uint32_t entry_raw;
     uint32_t scan_bytes;
     int32_t delta;
-    uint32_t got_vma;
     int rc;
 
     if (ctx == RT_NULL)
@@ -308,11 +252,8 @@ int app_prepare_exec(uint32_t app_addr, struct app_exec_context *ctx)
                   (unsigned long)info->link_base, (unsigned long)info->vector_vma,
                   (unsigned long)info->vector_size, (unsigned long)info->rel_dyn_vma,
                   (unsigned long)info->rel_dyn_size);
-    if (info->struct_size >= APP_RELOC_HEADER_GOT_SIZE)
-    {
-        APP_RELOC_LOG("header entry_vma=0x%08lx got_vma=0x%08lx\n",
-                      (unsigned long)info->entry_vma, (unsigned long)info->got_vma);
-    }
+    APP_RELOC_LOG("header entry_vma=0x%08lx got_vma=0x%08lx\n",
+                  (unsigned long)info->entry_vma, (unsigned long)info->got_vma);
 
     rc = validate_reloc_info(app_addr, info);
     if (rc != RT_EOK)
@@ -328,9 +269,7 @@ int app_prepare_exec(uint32_t app_addr, struct app_exec_context *ctx)
     }
 
     delta = (int32_t)app_addr - (int32_t)info->link_base;
-    got_vma = (info->struct_size >= APP_RELOC_HEADER_GOT_SIZE) ? info->got_vma : 0u;
     vector_src = app_addr + (info->vector_vma - info->link_base);
-    vector_words = info->vector_size / sizeof(uint32_t);
 
     if (!range_in_flash(vector_src, info->vector_size))
     {
@@ -338,33 +277,26 @@ int app_prepare_exec(uint32_t app_addr, struct app_exec_context *ctx)
         return -RT_EINVAL;
     }
 
-    rt_memcpy(g_app_vector_shadow, (const void *)(uintptr_t)vector_src, info->vector_size);
-    APP_RELOC_LOG("vector copy src=0x%08lx dst=0x%08lx size=0x%08lx\n",
-                  (unsigned long)vector_src,
-                  (unsigned long)(uintptr_t)g_app_vector_shadow,
-                  (unsigned long)info->vector_size);
-    APP_RELOC_LOG("vector copied vec0=0x%08lx vec1=0x%08lx delta=0x%08lx\n",
-                  (unsigned long)g_app_vector_shadow[0],
-                  (unsigned long)g_app_vector_shadow[1],
-                  (unsigned long)delta);
-
-    relocate_vector_table(info->link_base, delta, vector_words);
-
-    ctx->msp = g_app_vector_shadow[0];
+    ctx->msp = *(volatile uint32_t *)(uintptr_t)(vector_src + 0u);
     if ((ctx->msp <= BOOT_SRAM_BASE) || (ctx->msp > APP_RELOC_SRAM_END))
     {
         APP_RELOC_LOG("bad msp=0x%08lx\n", (unsigned long)ctx->msp);
         return -RT_EINVAL;
     }
 
-    /* Boot always enters app Reset_Handler via vector[1]. */
-    ctx->entry = g_app_vector_shadow[1];
+    entry_raw = *(volatile uint32_t *)(uintptr_t)(vector_src + 4u);
+    if ((entry_raw >= info->link_base) && (entry_raw < APP_RELOC_FLASH_END))
+    {
+        entry_raw = (uint32_t)((int32_t)entry_raw + delta);
+    }
+    /* Boot only sets MSP and jumps into Reset_Handler.
+     * VTOR/r9/.data/.bss/ram-reloc are now done in app startup. */
+    ctx->entry = entry_raw;
     ctx->entry |= 0x1u;
-    ctx->vtor = BOOT_APP_VTOR_RAM_BASE;
-    ctx->pic_base = (got_vma != 0u) ? got_vma : info->data_vma;
-    APP_RELOC_LOG("handoff reset=0x%08lx pic_base=0x%08lx (data/bss+ram-reloc in app)\n",
-                  (unsigned long)ctx->entry,
-                  (unsigned long)ctx->pic_base);
+    ctx->vtor = 0u;
+    ctx->pic_base = 0u;
+    APP_RELOC_LOG("handoff reset=0x%08lx (app handles VTOR/pic_base/data/bss+ram-reloc)\n",
+                  (unsigned long)ctx->entry);
 
     return RT_EOK;
 }

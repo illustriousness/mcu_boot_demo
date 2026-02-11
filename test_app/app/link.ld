@@ -36,18 +36,13 @@ SECTIONS
         __app_reloc_info = .;
         LONG(0x524C4F43) /* "RLOC" */
         LONG(1)          /* version */
-        LONG(16 * 4)     /* struct size */
+        LONG(11 * 4)     /* struct size */
         LONG(APP_FLASH_ORIGIN)
         LONG(__app_vector_start)
         LONG(__app_vector_end - __app_vector_start)
         LONG(ADDR(.rel.dyn))
         LONG(SIZEOF(.rel.dyn))
         LONG(8)
-        LONG(_sidata)
-        LONG(_sdata)
-        LONG(_edata)
-        LONG(__bss_start)
-        LONG(__bss_end)
         /* Boot now always jumps into Reset_Handler. */
         LONG(Reset_Handler)
         /* Single-PIC-base (r9) is expected to use the data base, not GOT start. */
