@@ -32,7 +32,7 @@ extern "C" {
 #include "main.h"
 
 #define DBG_TAG "boot"
-#define DBG_LVL DBG_LOG
+#define DBG_LEVEL DBG_INFO
 #include "rtdbg.h"
 
 #define BOOT_LOG_ERR(...) LOG_E(__VA_ARGS__)

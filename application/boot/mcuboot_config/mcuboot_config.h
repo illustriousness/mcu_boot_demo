@@ -7,8 +7,10 @@
 #define MCUBOOT_USE_TINYCRYPT     1
 #define MCUBOOT_SIGN_EC256        1
 
-/* Image management: overwrite-only (no scratch swap). */
-#define MCUBOOT_OVERWRITE_ONLY    1
+/* Image management: direct-XIP across slots (app is relocatable). */
+#define MCUBOOT_DIRECT_XIP        1
+/* Keep revert logic in custom boot watchdog state machine. */
+/* #define MCUBOOT_DIRECT_XIP_REVERT 1 */
 #define MCUBOOT_VALIDATE_PRIMARY_SLOT 1
 
 /* Single-image setup. */

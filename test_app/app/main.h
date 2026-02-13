@@ -15,6 +15,6 @@ int flash_set_value(char *name, void *value, uint8_t len);
 // uint8_t can_read(can_receive_message_struct *msg);
 
 uint32_t tick_get(void);
-
+void rt_timer_check(void);
 // uint8_t app_can_upgrade(void);
 #endif /* MAIN_H_ */

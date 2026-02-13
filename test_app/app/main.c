@@ -3,9 +3,17 @@
 #include <stdlib.h>
 #include "finsh.h"
 #include "main.h"
+#include "boot_param.h"
+
+#define DBG_TAG "app/main"
+#define DBG_LVL DBG_LOG
+#include <rtdbg.h>
 
 #define APP_DIAG_MARK_ADDR         0x2000BF80u
 #define SEGGER_RTT_printf(ch, ...) rt_kprintf(__VA_ARGS__)
+
+#define APP_AUTO_CONFIRM 0
+
 static const uint32_t g_const_magic = 0xC0DE2026u;
 static const char g_const_str[] = "CONST_OK";
 
@@ -14,6 +22,9 @@ static char g_data_str[] = "DATA_OK";
 
 static uint32_t g_bss_magic;
 static char g_bss_buf[8];
+
+int app_current_slot(void);
+int app_confirm(void);
 
 static void app_diag_mark(unsigned int value)
 {
@@ -82,9 +93,10 @@ void delay(int ms)
     }
 }
 
+int cat_slot();
+
 int main()
 {
-    uint32_t last_tick = 0u;
     __asm__ volatile("cpsie i");
 
 
@@ -92,26 +104,37 @@ int main()
     /* Keep boot/app RTT session continuous; avoid force re-init on handoff. */
     // SEGGER_RTT_SetFlagsUpBuffer(0, SEGGER_RTT_MODE_NO_BLOCK_SKIP);
     // rt_kprintf("[app] entry begin SystemCoreClock %d \r\n", SystemCoreClock);
+    // LOG_I("");
     app_dump_startup_checks();
+
+    cat_slot();
+#if APP_AUTO_CONFIRM
+    app_confirm();
+#endif
     // app_dump_startup_checks();
     // app_diag_mark(0xA5A5B002u);
     while (1)
     {
+        fwdgt_counter_reload();
         // app_diag_mark(0xA5A5B003u);
         // SEGGER_RTT_printf(0, "Hello, world! loop=%lu %d\r\n", (unsigned long)last_tick++, tick_get());
         // delay(10000);
         rt_timer_check();
-        if (tick_get() - last_tick >= 1000)
-        {
-            last_tick = tick_get();
-            rt_kprintf("[app] tick=%lu\r\n", (unsigned long)last_tick);
-        }
+        // if (tick_get() - last_tick >= 1000)
+        // {
+        //     last_tick = tick_get();
+        //     rt_kprintf("[app] tick=%lu\r\n", (unsigned long)last_tick);
+        // }
     }
     return 0;
 }
-void say_hello(void *parameter)
+void say_hello(int argc, char **argv)
 {
-    rt_kprintf("hello! this app build time is %s %s\n", __DATE__, __TIME__);
+    LOG_I("hello! this app build time is %s %s\n", __DATE__, __TIME__);
+    if (argc > 1)
+    {
+        delay(999999);
+    }
 }
 MSH_CMD_EXPORT(say_hello, desc);
 
@@ -120,3 +143,64 @@ void reboot()
     NVIC_SystemReset();
 }
 MSH_CMD_EXPORT(reboot, reboot command);
+
+#define SLOT0_BASE 0x08007800u
+#define SLOT1_BASE 0x08023000u
+#define SLOT_SIZE  0x0001B800u
+
+int app_current_slot(void)
+{
+    const uint32_t *vt = (const uint32_t *)(uintptr_t)SCB->VTOR;
+    uint32_t reset = vt[1] & ~1u; // Thumb bit clear
+
+    if (reset >= SLOT0_BASE && reset < (SLOT0_BASE + SLOT_SIZE))
+        return 0;
+    if (reset >= SLOT1_BASE && reset < (SLOT1_BASE + SLOT_SIZE))
+        return 1;
+    return -1;
+}
+
+int cat_slot()
+{
+    say_hello(0, NULL);
+    LOG_I("app_current_slot %d\n", app_current_slot());
+    return 0;
+}
+MSH_CMD_EXPORT(cat_slot, desc)
+
+int app_confirm(void)
+{
+    boot_param_t param;
+    int slot = app_current_slot();
+    int rc;
+
+    if (slot < 0)
+    {
+        rt_kprintf("[app_confirm] invalid current slot=%d\n", slot);
+        return -RT_EINVAL;
+    }
+
+    rc = boot_param_load(&param);
+    if (rc != RT_EOK)
+    {
+        boot_param_get_default(&param);
+    }
+    else if ((param.active_slot == (uint32_t)slot) &&
+             (param.trial_slot == BOOT_SLOT_INVALID) &&
+             (param.confirmed == 1u))
+    {
+        rt_kprintf("[app_confirm] already confirmed slot=%d\n", slot);
+        return RT_EOK;
+    }
+
+    param.active_slot = (uint32_t)slot;
+    param.trial_slot = BOOT_SLOT_INVALID;
+    param.confirmed = 1u;
+    param.trial_boot_count = 0u;
+    param.last_boot_slot = (uint32_t)slot;
+
+    rc = boot_param_save(&param);
+    rt_kprintf("[app_confirm] slot=%d rc=%d\n", slot, rc);
+    return rc;
+}
+MSH_CMD_EXPORT(app_confirm, confirm current slot as healthy);

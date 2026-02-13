@@ -35,6 +35,37 @@
             "command": "${command:eide.project.clean}",
             "group": "build",
             "problemMatcher": []
+        },
+        {
+            "label": "user_flash",
+            "type": "shell",
+            "command": "bash",
+            "args": [
+                "scripts/flash.sh",
+                // "${workspaceFolder}/rtthread.bin",
+                "${workspaceFolder}/deburr_mcu.bin",
+                "0x08007800",
+                "GD32F303CC"
+            ],
+            "windows": {
+                "command": "powershell",
+                "args": [
+                    "-NoProfile",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                    "${workspaceFolder}\\.vscode\\flash.ps1",
+                    // "${workspaceFolder}\\rtthread.bin",
+                    "${workspaceFolder}/build/Debug/test_app_sign.bin",
+                    "0x08007800",
+                    // "0x08023000",
+                    "GD32F303CC"
+                ]
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
         }
     ]
 }

@@ -23,18 +23,11 @@ void mcuboot_start(void)
     if (FIH_NOT_EQ(rc, FIH_SUCCESS))
     {
         goto exit;
-        // while (1)
-        // {
-        // }
     }
 
     mcuboot_jump(&rsp);
     return;
 exit:
     rt_kprintf("failed to boot (%d)\n", rc);
-    // while (1)
-    // {
-    //     rt_timer_check();
-    // }
 }
-// MSH_CMD_EXPORT(mcuboot_start, desc);
+MSH_CMD_EXPORT(mcuboot_start, desc);

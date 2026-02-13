@@ -4,7 +4,7 @@
 #include "gd32f30x.h"
 #include "rtthread.h"
 
-#define APP_RELOC_DEBUG 1
+#define APP_RELOC_DEBUG 0
 
 #if APP_RELOC_DEBUG
 #define APP_RELOC_LOG(...) rt_kprintf("[app_reloc] " __VA_ARGS__)

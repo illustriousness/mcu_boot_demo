@@ -9,6 +9,7 @@ srcDirs:
   - ../Middlewares/common
   - ../Middlewares/finsh
   - ../Drivers
+  - zmodem
 virtualFolder:
   name: <virtual_root>
   files: []
@@ -22,7 +23,7 @@ targets:
     cppPreprocessAttrs:
       defineList:
         - GD32F30X_HD
-      incList: 
+      incList:
         - ../Middlewares/rtt_print
         - app
         - ../Middlewares/common/src
@@ -33,13 +34,15 @@ targets:
         - ../Drivers/gd_stdlib/src
         - ../Drivers/gd_stdlib/inc
         - ../Drivers/CMSIS
-        - ../Drivers/bsp"
+        - ../Drivers/bsp
       libList: []
     excludeList:
       - ../Middlewares/rtt_print/segger_rtt_device.c
       - ../Drivers/bsp/bsp_can.c
       - ../Drivers/gd_stdlib/gcc_startup_gd32f30x_hd.s
       - ../Drivers/gd_stdlib/startup_gd32f30x_hd.s
+      - zmodem/zmodem_tabby_rx_rz.c
+      - zmodem/zmodem_tabby_rx_min.c
     toolchain: GCC
     toolchainConfigMap:
       GCC:
@@ -48,7 +51,15 @@ targets:
         floatingPointHardware: single
         options:
           version: 5
-          afterBuildTasks: []
+          afterBuildTasks:
+            - name: check pic reloc
+              abortAfterFailed: false
+              command: python ${workspaceFolder}/scripts/check_pic_reloc.py --elf ${ExecutableName}.elf  --allow-textrel --allow-from-app-reloc
+              disable: false
+            - name: imgtool
+              abortAfterFailed: false
+              command: python ${workspaceFolder}/scripts/imgtool.py sign --key ${workspaceFolder}/../application/boot/root-ec-p256.pem --header-size 0x20 --pad-header --align 8 --slot-size 0x1B800 --version 1.0.1 ${ExecutableName}.bin ${ExecutableName}_sign.bin
+              disable: false
           asm-compiler: {}
           beforeBuildTasks: []
           c/cpp-compiler:

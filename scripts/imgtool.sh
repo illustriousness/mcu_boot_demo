@@ -1,6 +1,6 @@
 #!bash  
   ./.env/bin/python Middlewares/mcuboot/scripts/imgtool.py sign \
-    --key Middlewares/mcuboot/root-ec-p256.pem \
+    --key application/boot/root-ec-p256.pem \
     --header-size 0x20 \
     --pad-header \
     --align 8 \

@@ -14,7 +14,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Iterable, List, Sequence, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 
 @dataclass(frozen=True)
@@ -126,6 +126,51 @@ def has_textrel(readelf_d: str) -> bool:
     return False
 
 
+def parse_int_auto(text: str) -> int:
+    return int(text, 0)
+
+
+def parse_app_reloc_info_from_hex_dump(readelf_x: str) -> Optional[Dict[str, int]]:
+    # app_reloc_info v1 (11 words):
+    # magic, version, struct_size, link_base, vector_vma, vector_size,
+    # rel_dyn_vma, rel_dyn_size, rel_ent_size, entry_vma, got_vma
+    want_bytes = 11 * 4
+    hex_word_pat = re.compile(r"^[0-9A-Fa-f]{8}$")
+    line_pat = re.compile(r"^\s*0x[0-9A-Fa-f]+\s+(.*)$")
+    blob = bytearray()
+
+    for line in readelf_x.splitlines():
+        m = line_pat.match(line)
+        if not m:
+            continue
+        for tok in m.group(1).split():
+            if hex_word_pat.fullmatch(tok):
+                blob.extend(bytes.fromhex(tok))
+            else:
+                break
+        if len(blob) >= want_bytes:
+            break
+
+    if len(blob) < want_bytes:
+        return None
+
+    words = [int.from_bytes(blob[i : i + 4], "little") for i in range(0, want_bytes, 4)]
+    magic, version, struct_size = words[0], words[1], words[2]
+    if magic != 0x524C4F43 or version != 1 or struct_size < want_bytes:
+        return None
+
+    return {
+        "link_base": words[3],
+        "vector_vma": words[4],
+        "vector_size": words[5],
+        "rel_dyn_vma": words[6],
+        "rel_dyn_size": words[7],
+        "rel_ent_size": words[8],
+        "entry_vma": words[9],
+        "got_vma": words[10],
+    }
+
+
 def main(argv: Sequence[str]) -> int:
     ap = argparse.ArgumentParser(description="Check PIE relocation safety for MCU app ELF")
     ap.add_argument("--elf", required=True, help="Path to ELF")
@@ -168,6 +213,17 @@ def main(argv: Sequence[str]) -> int:
         default=30,
         help="Max violation lines to print (default: 30)",
     )
+    ap.add_argument(
+        "--allow-from-app-reloc",
+        action="store_true",
+        help="Auto-allow FLASH reloc targets from app_reloc_info (vector + startup window)",
+    )
+    ap.add_argument(
+        "--startup-window",
+        type=parse_int_auto,
+        default=0x200,
+        help="Startup literal-pool allow window from entry_vma (default: 0x200)",
+    )
     args = ap.parse_args(argv)
 
     try:
@@ -189,6 +245,28 @@ def main(argv: Sequence[str]) -> int:
     sections = parse_sections(sec_out)
     relocs = parse_relocations(rel_out)
     textrel = has_textrel(dyn_out)
+
+    if args.allow_from_app_reloc:
+        try:
+            x_out = run_cmd([args.readelf, "-x", ".app_reloc_info", args.elf])
+        except RuntimeError as e:
+            print(f"[pic-check] warning: cannot read .app_reloc_info ({e})")
+            x_out = ""
+
+        info = parse_app_reloc_info_from_hex_dump(x_out) if x_out else None
+        if info is None:
+            print("[pic-check] warning: app_reloc_info not parsed, auto-allow skipped")
+        else:
+            vector_start = info["vector_vma"]
+            vector_end = vector_start + info["vector_size"]
+            startup_start = info["entry_vma"] & ~1
+            startup_end = startup_start + args.startup_window + 4
+            auto_allow = [Range(vector_start, vector_end), Range(startup_start, startup_end)]
+            allow_flash.extend(auto_allow)
+            print(
+                "[pic-check] auto-allow from app_reloc_info:"
+                f" vector={auto_allow[0]}, startup={auto_allow[1]}"
+            )
 
     @lru_cache(maxsize=1024)
     def sym_loc(addr: int) -> str:
@@ -257,4 +335,3 @@ def main(argv: Sequence[str]) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main(sys.argv[1:]))
-

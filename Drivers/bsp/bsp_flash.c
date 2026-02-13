@@ -209,10 +209,10 @@ int onchip_flash_erase(uint32_t offset, uint32_t size)
     return ret;
 }
 
-// void onchip_flash_init(void)
-// {
-//     fmc_unlock();
-//     FMC_WSEN |= FMC_WSEN_BPEN;
-//     fmc_lock();
-// }
-// INIT_BOARD_EXPORT(onchip_flash_init);
+void onchip_flash_init(void)
+{
+    fmc_unlock();
+    FMC_WSEN |= FMC_WSEN_BPEN;
+    fmc_lock();
+}
+INIT_BOARD_EXPORT(onchip_flash_init);

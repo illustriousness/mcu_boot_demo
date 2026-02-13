@@ -91,9 +91,20 @@ Boot 工程中可用：
 - `run_app [addr]`
   - 不带参数默认跳 `0x08007800`
   - 示例：`run_app 0x0800a000`
+- `boot`
+  - 调用 `mcuboot_start()`，按 MCUboot 选槽策略启动
+- `boot_state`：查看回滚状态
+- `boot_set_trial <0|1>`：设置试运行槽位（armed）
+- `boot_set_active <0|1>`：强制设置稳定槽位并清 trial
+- `boot_param_reset`：重置回滚状态为默认值（slot0 confirmed）
 - `app_diag` / `app_diag_clr`：查看/清除启动诊断标记
 - `reset_flags`：查看复位来源标志
 - `say_hello`
+
+App 工程中可用：
+
+- `cat_slot`：查看当前运行槽位
+- `app_confirm`：确认当前槽位为健康版本（自定义 `BOOT_PARAM` 标记，可选）
 
 ## 构建与烧录
 
@@ -120,22 +131,32 @@ python3 scripts/check_pic_reloc.py \
 
 配置位于 `application/boot/mcuboot_config/mcuboot_config.h`，当前为：
 
-- `MCUBOOT_OVERWRITE_ONLY = 1`
+- `MCUBOOT_DIRECT_XIP = 1`
 - `MCUBOOT_IMAGE_NUMBER = 1`
 - `MCUBOOT_VALIDATE_PRIMARY_SLOT = 1`
 
-注意：`application/main.c` 当前默认走手动 `run_app` 路径，`mcuboot_start()` 处于注释状态。
+说明：
+
+- 未启用 `MCUBOOT_DIRECT_XIP_REVERT`。
+- 看门狗驱动位于 `Drivers/bsp/fwdg.c`。
+- 自定义回滚状态机位于 `application/main.c`（`BOOT_PARAM` 持久化在 `0x0803F000`）。
+
+注意：`application/main.c` 上电后先进入约 3 秒窗口，再按 `BOOT_PARAM` 决策自动跳转；
+也可在窗口内手动执行 `boot` / `run_app`。
 
 ## 回滚策略建议（不在 App 引入 MCUboot API）
 
-推荐将升级状态持久化在 `BOOT_PARAM`（Flash，非 RAM）：
+当前实现（已落地）：
 
-- 字段建议：`active_slot`、`trial_slot`、`confirmed`、`boot_count`
-- Boot 上电开看门狗后跳 trial 固件
-- App 仅负责喂狗，完成关键初始化后写 `confirmed=1`
-- 若 App 卡死导致 WDG 复位，Boot 依据复位标志 + `confirmed=0` 回滚到 `active_slot`
-
-这样可避免 App 依赖 `bootutil` 接口，同时保留自动回滚能力。
+- `boot_set_trial <slot>` 将升级槽标记为 trial（`confirmed=0`）
+- 主循环状态机在 `main.c` 决策启动：
+  - 若检测到 WDG 复位且上次启动的是 trial 槽，则自动回滚到 `active_slot`
+  - 否则优先启动 trial 槽，并递增 `trial_boot_count`
+- App 启动后执行 `app_confirm`（模板中默认自动调用）：
+  - 写 `active_slot=current_slot`
+  - 清 `trial_slot`
+  - 置 `confirmed=1`
+- App 主循环喂狗；若 App 卡死不喂狗，触发 WDG 复位后下次 Boot 回滚
 
 ## 调试提示
 
